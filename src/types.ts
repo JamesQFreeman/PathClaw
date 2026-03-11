@@ -77,12 +77,30 @@ export interface TaskRunLog {
   error: string | null;
 }
 
+export interface OutboundTextPart {
+  type: 'text';
+  text: string;
+}
+
+export interface OutboundImagePart {
+  type: 'image';
+  path: string;
+  caption?: string;
+}
+
+export type OutboundMessagePart = OutboundTextPart | OutboundImagePart;
+
+export interface OutboundMessage {
+  parts: OutboundMessagePart[];
+}
+
 // --- Channel abstraction ---
 
 export interface Channel {
   name: string;
   connect(): Promise<void>;
   sendMessage(jid: string, text: string): Promise<void>;
+  sendMediaMessage?(jid: string, message: OutboundMessage): Promise<void>;
   isConnected(): boolean;
   ownsJid(jid: string): boolean;
   disconnect(): Promise<void>;

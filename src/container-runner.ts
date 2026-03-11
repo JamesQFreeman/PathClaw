@@ -26,6 +26,7 @@ import {
   stopContainer,
 } from './container-runtime.js';
 import { detectAuthMode } from './credential-proxy.js';
+import { readEnvFile } from './env.js';
 import { validateAdditionalMounts } from './mount-security.js';
 import { RegisteredGroup } from './types.js';
 
@@ -217,6 +218,7 @@ function buildContainerArgs(
   containerName: string,
 ): string[] {
   const args: string[] = ['run', '-i', '--rm', '--name', containerName];
+  const envSecrets = readEnvFile(['GEMINI_API_KEY', 'GEMINI_MODEL']);
 
   // Pass host timezone so container's local time matches the user's
   args.push('-e', `TZ=${TIMEZONE}`);
@@ -236,6 +238,18 @@ function buildContainerArgs(
     args.push('-e', 'ANTHROPIC_API_KEY=placeholder');
   } else {
     args.push('-e', 'CLAUDE_CODE_OAUTH_TOKEN=placeholder');
+  }
+
+  // Optional direct Gemini access for multimodal pathology workflows.
+  // Unlike Anthropic, this is not proxied today; the key is passed only
+  // when explicitly configured on the host.
+  const geminiApiKey = process.env.GEMINI_API_KEY || envSecrets.GEMINI_API_KEY;
+  const geminiModel = process.env.GEMINI_MODEL || envSecrets.GEMINI_MODEL;
+  if (geminiApiKey) {
+    args.push('-e', `GEMINI_API_KEY=${geminiApiKey}`);
+  }
+  if (geminiModel) {
+    args.push('-e', `GEMINI_MODEL=${geminiModel}`);
   }
 
   // Runtime-specific args for host gateway resolution

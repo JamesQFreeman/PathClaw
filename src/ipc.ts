@@ -3,15 +3,16 @@ import path from 'path';
 
 import { CronExpressionParser } from 'cron-parser';
 
-import { DATA_DIR, IPC_POLL_INTERVAL, TIMEZONE } from './config.js';
+import { DATA_DIR, GROUPS_DIR, IPC_POLL_INTERVAL, TIMEZONE } from './config.js';
 import { AvailableGroup } from './container-runner.js';
 import { createTask, deleteTask, getTaskById, updateTask } from './db.js';
 import { isValidGroupFolder } from './group-folder.js';
 import { logger } from './logger.js';
-import { RegisteredGroup } from './types.js';
+import { OutboundMessage, RegisteredGroup } from './types.js';
 
 export interface IpcDeps {
   sendMessage: (jid: string, text: string) => Promise<void>;
+  sendOutboundMessage: (jid: string, message: OutboundMessage) => Promise<void>;
   registeredGroups: () => Record<string, RegisteredGroup>;
   registerGroup: (jid: string, group: RegisteredGroup) => void;
   syncGroups: (force: boolean) => Promise<void>;
@@ -25,6 +26,39 @@ export interface IpcDeps {
 }
 
 let ipcWatcherRunning = false;
+
+function resolveWorkspaceAssetPath(
+  sourceGroup: string,
+  inputPath: string,
+): string {
+  const groupRoot = path.resolve(GROUPS_DIR, sourceGroup);
+  const trimmed = inputPath.trim();
+  const candidate = trimmed.startsWith('/workspace/group/')
+    ? path.join(groupRoot, trimmed.slice('/workspace/group/'.length))
+    : path.isAbsolute(trimmed)
+      ? trimmed
+      : path.join(groupRoot, trimmed);
+  const resolved = path.resolve(candidate);
+
+  if (resolved !== groupRoot && !resolved.startsWith(`${groupRoot}${path.sep}`)) {
+    throw new Error(`Media path escapes group workspace: ${inputPath}`);
+  }
+
+  return resolved;
+}
+
+function resolveOutboundMessagePaths(
+  sourceGroup: string,
+  message: OutboundMessage,
+): OutboundMessage {
+  return {
+    parts: message.parts.map((part) =>
+      part.type === 'image'
+        ? { ...part, path: resolveWorkspaceAssetPath(sourceGroup, part.path) }
+        : part,
+    ),
+  };
+}
 
 export function startIpcWatcher(deps: IpcDeps): void {
   if (ipcWatcherRunning) {
@@ -89,6 +123,30 @@ export function startIpcWatcher(deps: IpcDeps): void {
                   logger.warn(
                     { chatJid: data.chatJid, sourceGroup },
                     'Unauthorized IPC message attempt blocked',
+                  );
+                }
+              } else if (
+                data.type === 'media_message' &&
+                data.chatJid &&
+                Array.isArray(data.parts)
+              ) {
+                const targetGroup = registeredGroups[data.chatJid];
+                if (
+                  isMain ||
+                  (targetGroup && targetGroup.folder === sourceGroup)
+                ) {
+                  const message = resolveOutboundMessagePaths(sourceGroup, {
+                    parts: data.parts,
+                  });
+                  await deps.sendOutboundMessage(data.chatJid, message);
+                  logger.info(
+                    { chatJid: data.chatJid, sourceGroup },
+                    'IPC media message sent',
+                  );
+                } else {
+                  logger.warn(
+                    { chatJid: data.chatJid, sourceGroup },
+                    'Unauthorized IPC media message attempt blocked',
                   );
                 }
               }

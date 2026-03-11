@@ -18,6 +18,16 @@ Your output is sent to the user or group.
 
 You also have `mcp__nanoclaw__send_message` which sends a message immediately while you're still working. This is useful when you want to acknowledge a request before starting longer work.
 
+You also have `mcp__nanoclaw__send_media_message` for sending ordered text and image replies back to chat. Use this when you want to interleave a short explanation with generated images such as thumbnails or extracted regions.
+
+You also have WSI tools under `mcp__pathclaw_wsi__*`:
+- `list_wsi_slides`
+- `inspect_wsi`
+- `render_wsi_thumbnail`
+- `render_wsi_region`
+
+Use them for local slide files mounted into the workspace, especially under `/workspace/extra/slides`. Generated outputs should be written under `/workspace/group/wsi-output/` and can then be sent with `send_media_message`.
+
 ### Internal thoughts
 
 If part of your output is internal reasoning rather than something for the user, wrap it in `<internal>` tags:

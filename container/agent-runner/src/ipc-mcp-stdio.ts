@@ -63,6 +63,56 @@ server.tool(
 );
 
 server.tool(
+  'send_media_message',
+  `Send an ordered sequence of text and image parts back to the current chat. Image paths must point to files created inside /workspace/group (absolute container paths like /workspace/group/output/foo.png are recommended). The host will translate them back to the mounted group workspace and send them sequentially through the chat channel.`,
+  {
+    parts: z
+      .array(
+        z.discriminatedUnion('type', [
+          z.object({
+            type: z.literal('text'),
+            text: z.string().describe('Text to send as its own chat message'),
+          }),
+          z.object({
+            type: z.literal('image'),
+            path: z
+              .string()
+              .describe(
+                'Path to an image file inside /workspace/group, absolute or relative to the group workspace',
+              ),
+            caption: z
+              .string()
+              .optional()
+              .describe('Optional caption to send with the image'),
+          }),
+        ]),
+      )
+      .min(1)
+      .describe('Ordered message parts to send sequentially'),
+    target_group_jid: z
+      .string()
+      .optional()
+      .describe('(Main group only) JID of the group to send the media message to. Defaults to the current group.'),
+  },
+  async (args) => {
+    const targetJid = isMain && args.target_group_jid ? args.target_group_jid : chatJid;
+    const data = {
+      type: 'media_message',
+      chatJid: targetJid,
+      parts: args.parts,
+      groupFolder,
+      timestamp: new Date().toISOString(),
+    };
+
+    writeIpcFile(MESSAGES_DIR, data);
+
+    return {
+      content: [{ type: 'text' as const, text: `Queued ${args.parts.length} media message part(s).` }],
+    };
+  },
+);
+
+server.tool(
   'schedule_task',
   `Schedule a recurring or one-time task. The task will run as a full agent with access to all tools. Returns the task ID for future reference. To modify an existing task, use update_task instead.
 

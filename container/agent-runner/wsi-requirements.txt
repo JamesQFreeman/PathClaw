@@ -1,0 +1,4 @@
+mcp>=1.0.0
+tiffslide>=2.5.1
+Pillow>=10.0.0
+google-genai>=1.0.0

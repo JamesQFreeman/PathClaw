@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  An AI assistant that runs agents securely in their own containers. Lightweight, built to be easily understood and completely customized for your needs.
+  PathClaw is a NanoClaw-derived AI assistant that runs agents securely in their own containers. It stays lightweight while adding whole-slide image tooling and chat-friendly image delivery.
 </p>
 
 <p align="center">
@@ -12,7 +12,7 @@
   <a href="https://discord.gg/VDdww8qS42"><img src="https://img.shields.io/discord/1470188214710046894?label=Discord&logo=discord&v=2" alt="Discord" valign="middle"></a>&nbsp; • &nbsp;
   <a href="repo-tokens"><img src="repo-tokens/badge.svg" alt="34.9k tokens, 17% of context window" valign="middle"></a>
 </p>
-Using Claude Code, NanoClaw can dynamically rewrite its code to customize its feature set for your needs.
+Using Claude Code, PathClaw can dynamically rewrite its code to customize its feature set for your needs.
 
 **New:** First AI assistant to support [Agent Swarms](https://code.claude.com/docs/en/agent-teams). Spin up teams of agents that collaborate in your chat.
 
@@ -63,9 +63,18 @@ Then run `/setup`. Claude Code handles everything: dependencies, authentication,
 
 **Best harness, best model.** NanoClaw runs on the Claude Agent SDK, which means you're running Claude Code directly. Claude Code is highly capable and its coding and problem-solving capabilities allow it to modify and expand NanoClaw and tailor it to each user.
 
+## PathClaw Additions
+
+- **Whole-slide imaging tools** - Open local WSI files with `tiffslide`, inspect metadata, render thumbnails, and extract regions.
+- **Generated image delivery** - Send text and generated slide images back through chat in sequence.
+- **Local-slide-first mounts** - Mount pathology slide folders into `/workspace/extra/slides` using the existing additional-mounts model.
+
+PathClaw v1 supports local mounted slide files first. Cloud-backed `fsspec` sources are intentionally deferred.
+
 ## What It Supports
 
 - **Multi-channel messaging** - Talk to your assistant from WhatsApp, Telegram, Discord, Slack, or Gmail. Add channels with skills like `/add-whatsapp` or `/add-telegram`. Run one or many at the same time.
+- **Telegram-first media replies** - PathClaw can send text plus generated WSI images back to Telegram in sequence.
 - **Isolated group context** - Each group has its own `CLAUDE.md` memory, isolated filesystem, and runs in its own container sandbox with only that filesystem mounted to it.
 - **Main channel** - Your private channel (self-chat) for admin control; every group is completely isolated
 - **Scheduled tasks** - Recurring jobs that run Claude and can message you back

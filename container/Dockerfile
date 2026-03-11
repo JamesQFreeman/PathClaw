@@ -24,6 +24,9 @@ RUN apt-get update && apt-get install -y \
     libxshmfence1 \
     curl \
     git \
+    python3 \
+    python3-pip \
+    python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
 # Set Chromium path for agent-browser
@@ -44,6 +47,11 @@ RUN npm install
 
 # Copy source code
 COPY agent-runner/ ./
+
+# Install WSI Python environment
+RUN python3 -m venv /opt/pathclaw-venv
+RUN /opt/pathclaw-venv/bin/pip install --no-cache-dir --upgrade pip
+RUN /opt/pathclaw-venv/bin/pip install --no-cache-dir -r /app/wsi-requirements.txt
 
 # Build TypeScript
 RUN npm run build
