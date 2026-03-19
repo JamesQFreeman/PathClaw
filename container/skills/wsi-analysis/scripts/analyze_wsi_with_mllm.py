@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from gemini_common import call_gemini, parse_json_response, resolve_model
+from mllm_common import call_mllm, parse_json_response, resolve_mllm_model
 
 
 def build_prompt(metadata: dict[str, Any], roi_json: dict[str, Any]) -> str:
@@ -80,7 +80,7 @@ def main() -> None:
     metadata = json.loads(Path(args.metadata_file).read_text())
     roi_json = json.loads(Path(args.roi_json).read_text())
     prompt = build_prompt(metadata, roi_json)
-    text = call_gemini(
+    text = call_mllm(
         [
             {
                 "role": "user",
@@ -91,11 +91,11 @@ def main() -> None:
                 ],
             }
         ],
-        model=resolve_model(args.model),
+        model=resolve_mllm_model(args.model),
         temperature=0.2,
     )
     payload = parse_json_response(text)
-    payload["model"] = resolve_model(args.model)
+    payload["model"] = resolve_mllm_model(args.model)
     payload["report_markdown"] = format_markdown(payload)
     Path(args.output).write_text(json.dumps(payload, indent=2) + "\n")
     print(payload["report_markdown"])

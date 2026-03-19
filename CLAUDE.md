@@ -1,10 +1,10 @@
-# NanoClaw
+# PathClaw
 
-Personal Claude assistant. See [README.md](README.md) for philosophy and setup. See [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) for architecture decisions.
+Pathology-focused NanoClaw fork. See [README.md](README.md) for the current product story. See [AGENTS.md](AGENTS.md) for repository guidance that future AI agents should follow.
 
 ## Quick Context
 
-Single Node.js process with skill-based channel system. Channels (WhatsApp, Telegram, Slack, Discord, Gmail) are skills that self-register at startup. Messages route to Claude Agent SDK running in containers (Linux VMs). Each group has isolated filesystem and memory.
+Single Node.js host process with containerized agent runs. PathClaw currently focuses on Telegram-first pathology workflows, especially whole-slide image viewing and agent-assisted WSI analysis.
 
 ## Key Files
 
@@ -19,27 +19,27 @@ Single Node.js process with skill-based channel system. Channels (WhatsApp, Tele
 | `src/task-scheduler.ts` | Runs scheduled tasks |
 | `src/db.ts` | SQLite operations |
 | `groups/{name}/CLAUDE.md` | Per-group memory (isolated) |
-| `container/skills/agent-browser.md` | Browser automation tool (available to all agents via Bash) |
+| `container/agent-runner/wsi_mcp.py` | WSI thumbnail/ROI tooling |
+| `container/skills/wsi-analysis/` | Step-by-step pathology analysis workflow |
 
-## Skills
+## Focus
 
-| Skill | When to Use |
-|-------|-------------|
-| `/setup` | First-time installation, authentication, service configuration |
-| `/customize` | Adding channels, integrations, changing behavior |
-| `/debug` | Container issues, logs, troubleshooting |
-| `/update-nanoclaw` | Bring upstream NanoClaw updates into a customized install |
-| `/qodo-pr-resolver` | Fetch and fix Qodo PR review issues interactively or in batch |
-| `/get-qodo-rules` | Load org- and repo-level coding rules from Qodo before code tasks |
+Prioritize:
+- WSI viewing
+- WSI analysis
+- Telegram image delivery
+- keeping the README and repo presentation pathology-first
+
+Avoid broadening the project description into a generic assistant platform unless explicitly requested.
 
 ## Development
 
 Run commands directly—don't tell the user to run them.
 
 ```bash
-npm run dev          # Run with hot reload
-npm run build        # Compile TypeScript
-./container/build.sh # Rebuild agent container
+npm run dev
+npm run build
+docker build -t nanoclaw-agent:latest ./container
 ```
 
 Service management:
@@ -55,10 +55,12 @@ systemctl --user stop nanoclaw
 systemctl --user restart nanoclaw
 ```
 
-## Troubleshooting
+## Git hygiene
 
-**WhatsApp not connecting after upgrade:** WhatsApp is now a separate channel fork, not bundled in core. Run `/add-whatsapp` (or `git remote add whatsapp https://github.com/qwibitai/nanoclaw-whatsapp.git && git fetch whatsapp main && (git merge whatsapp/main || { git checkout --theirs package-lock.json && git add package-lock.json && git merge --continue; }) && npm run build`) to install it. Existing auth credentials and groups are preserved.
-
-## Container Build Cache
-
-The container buildkit caches the build context aggressively. `--no-cache` alone does NOT invalidate COPY steps — the builder's volume retains stale files. To force a truly clean rebuild, prune the builder then re-run `./container/build.sh`.
+Keep local runtime state out of commits:
+- `.env`
+- `.claude/`
+- `data/`
+- `store/`
+- `logs/`
+- generated outputs under runtime group folders

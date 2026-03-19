@@ -8,7 +8,12 @@ from typing import Any
 
 from PIL import Image
 
-from gemini_common import call_gemini, parse_json_response, resolve_model
+from mllm_common import call_mllm, parse_json_response, resolve_mllm_model
+from specimen_coordinate_mapping import (
+    convert_normalized_box_2d_to_image_rect,
+    load_image_analysis_context,
+    map_image_rect_to_all_coordinate_systems,
+)
 
 
 def clamp_box(x: int, y: int, width: int, height: int, image_width: int, image_height: int) -> tuple[int, int, int, int]:
@@ -19,18 +24,21 @@ def clamp_box(x: int, y: int, width: int, height: int, image_width: int, image_h
     return x, y, width, height
 
 
-def build_prompt(metadata: dict[str, Any], thumb_w: int, thumb_h: int, max_rois: int) -> str:
+def build_prompt(metadata: dict[str, Any], image_w: int, image_h: int, max_rois: int, image_kind: str) -> str:
     return f"""
-You are proposing pathology ROIs from a whole-slide thumbnail.
+You are proposing pathology ROIs from a pathology image unit.
 
 Rules:
 - Use the image, not only metadata.
 - Avoid blank background, labels, borders, and mostly whitespace.
 - Select diverse tissue regions when possible.
 - Prefer 4 to {max_rois} ROIs.
+- Return ROI boxes as normalized coordinates between 0 and 1000.
+- Each ROI must include `box_2d` in the form [y0, x0, y1, x1].
 - Return a JSON object only.
 
-Thumbnail size: {thumb_w} x {thumb_h} pixels.
+Image unit kind: {image_kind}
+Image size: {image_w} x {image_h} pixels.
 Metadata priors:
 {json.dumps(metadata, indent=2)}
 
@@ -42,16 +50,11 @@ Return exactly this schema:
       "label": "ROI 1",
       "rationale": "why this region matters",
       "confidence": 0.0,
-      "x": 0,
-      "y": 0,
-      "width": 0,
-      "height": 0
+      "box_2d": [0, 0, 1000, 1000]
     }}
   ]
 }}
 """
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--thumbnail", required=True)
@@ -59,6 +62,7 @@ def main() -> None:
     parser.add_argument("--slide-height", required=True, type=int)
     parser.add_argument("--metadata-file")
     parser.add_argument("--output", required=True)
+    parser.add_argument("--image-context-file")
     parser.add_argument("--max-rois", type=int, default=6)
     parser.add_argument("--model")
     args = parser.parse_args()
@@ -69,8 +73,16 @@ def main() -> None:
 
     thumb = Image.open(args.thumbnail)
     thumb_w, thumb_h = thumb.size
-    prompt = build_prompt(metadata, thumb_w, thumb_h, args.max_rois)
-    text = call_gemini(
+    context = load_image_analysis_context(
+        args.image_context_file,
+        args.thumbnail,
+        thumb_w,
+        thumb_h,
+        args.slide_width,
+        args.slide_height,
+    )
+    prompt = build_prompt(metadata, thumb_w, thumb_h, args.max_rois, context.get("kind", "unknown"))
+    text = call_mllm(
         [
             {
                 "role": "user",
@@ -80,47 +92,53 @@ def main() -> None:
                 ],
             }
         ],
-        model=resolve_model(args.model),
+        model=resolve_mllm_model(args.model),
         temperature=0.1,
     )
     payload = parse_json_response(text)
-
     rois = []
-    scale_x = args.slide_width / thumb_w
-    scale_y = args.slide_height / thumb_h
     default_w = max(64, round(thumb_w * 0.18))
     default_h = max(64, round(thumb_h * 0.18))
     for idx, roi in enumerate((payload.get("rois") or [])[: args.max_rois], start=1):
-        raw_x = int(round(float(roi.get("x", 0))))
-        raw_y = int(round(float(roi.get("y", 0))))
-        raw_w = int(round(float(roi.get("width", default_w))))
-        raw_h = int(round(float(roi.get("height", default_h))))
+        if roi.get("box_2d"):
+            image_rect = convert_normalized_box_2d_to_image_rect(roi["box_2d"], thumb_w, thumb_h)
+            raw_x = image_rect["x"]
+            raw_y = image_rect["y"]
+            raw_w = image_rect["width"]
+            raw_h = image_rect["height"]
+        else:
+            raw_x = int(round(float(roi.get("x", 0))))
+            raw_y = int(round(float(roi.get("y", 0))))
+            raw_w = int(round(float(roi.get("width", default_w))))
+            raw_h = int(round(float(roi.get("height", default_h))))
         x, y, width, height = clamp_box(raw_x, raw_y, raw_w, raw_h, thumb_w, thumb_h)
+        mapped = map_image_rect_to_all_coordinate_systems(
+            context,
+            {
+                "x": x,
+                "y": y,
+                "width": width,
+                "height": height,
+            },
+        )
         rois.append(
             {
                 "index": idx,
                 "label": roi.get("label") or f"ROI {idx}",
                 "rationale": roi.get("rationale") or "",
                 "confidence": float(roi.get("confidence", 0.0) or 0.0),
-                "thumbnail_rect": {
-                    "x": x,
-                    "y": y,
-                    "width": width,
-                    "height": height,
-                },
-                "level0_region": {
-                    "x": int(round(x * scale_x)),
-                    "y": int(round(y * scale_y)),
-                    "width": int(round(width * scale_x)),
-                    "height": int(round(height * scale_y)),
-                },
+                "box_2d": roi.get("box_2d"),
+                "image_rect": mapped["image_rect"],
+                "thumbnail_rect": mapped["thumbnail_rect"],
+                "level0_region": mapped["level0_region"],
             }
         )
 
     result = {
-        "model": resolve_model(args.model),
+        "model": resolve_mllm_model(args.model),
         "thumbnail_path": str(Path(args.thumbnail).resolve()),
         "thumbnail_size": {"width": thumb_w, "height": thumb_h},
+        "image_unit_context": context,
         "slide_size": {"width": args.slide_width, "height": args.slide_height},
         "overview": payload.get("overview") or "",
         "rois": rois,

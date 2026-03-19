@@ -20,7 +20,7 @@ def require_api_key() -> str:
     return api_key
 
 
-def resolve_model(explicit: str | None = None) -> str:
+def resolve_mllm_model(explicit: str | None = None) -> str:
     return explicit or os.environ.get("GEMINI_MODEL") or DEFAULT_MODEL
 
 
@@ -30,7 +30,7 @@ def image_part(path: str) -> types.Part:
     return types.Part.from_bytes(data=raw, mime_type=mime)
 
 
-def call_gemini(messages: list[dict[str, Any]], model: str, temperature: float = 0.2) -> str:
+def call_mllm(messages: list[dict[str, Any]], model: str, temperature: float = 0.2) -> str:
     api_key = require_api_key()
     try:
         client = genai.Client(api_key=api_key)

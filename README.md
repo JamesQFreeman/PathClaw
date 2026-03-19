@@ -53,6 +53,8 @@ Supported local formats currently include:
 
 Generated outputs are written into the active group workspace and can be sent back to chat.
 
+For slides that contain multiple disconnected tissue pieces, PathClaw can also run a separate tissue-separation preprocessing step so downstream analysis can treat each specimen as its own image unit.
+
 ## WSI Analysis Skill
 
 The `wsi-analysis` skill is the higher-level pathology workflow.
