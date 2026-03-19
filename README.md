@@ -156,6 +156,13 @@ Not yet a focus:
 - broad channel support documentation
 - polished benchmarked pathology prompts across many specimen types
 
+### v0.0.2 Multi-tissue support, ROI selection get better. [Mar 19] 
+
+If the WSI have serial resection tissues, it will be segment (based on image processing, pathclaw's claude code or gemini) into seperate tissue.
+
+![PathClaw Telegram demo](assets/pathclaw-telegram-demo.gif)
+
+
 ## Important Disclaimer
 
 PathClaw is an experimental research workflow for pathology images.
